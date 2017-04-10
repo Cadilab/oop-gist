@@ -55,6 +55,14 @@
 			{
 				$this->loginWithSessionData();
 			}
+
+			// * Check if everything is set for account upgrade
+
+			elseif (!empty($_GET['account']) && !empty($_GET['token']) && !empty($_GET['trial']))
+			{
+				$this->addMonthToAccount($_GET['account']);
+				exit();
+			}
 		}
 
 		// * This is the function that connects us with the database
@@ -203,22 +211,100 @@
 
 		private function valid_membership($username)
 		{
-			$check_membership = $this->db_connection->prepare("SELECT * FROM users WHERE username = :username");
-			$check_membership->bindValue(':username', $username, PDO::PARAM_STR);
-			$check_membership->execute();
-
-			if($check_membership->rowCount() > 0)
+			if($this->databaseConnection())
 			{
-				$row = $check_membership->fetch(PDO::FETCH_ASSOC);
+				$check_membership = $this->db_connection->prepare("SELECT * FROM users WHERE username = :username");
+				$check_membership->bindValue(':username', $username, PDO::PARAM_STR);
+				$check_membership->execute();
 
-				$cdate = new DateTime();
-				$curent_date = $cdate->format('Y-m-d H:i:s');
-
-				if($curent_date > $row['expires'])
+				if($check_membership->rowCount() > 0)
 				{
-					return false;
+					$row = $check_membership->fetch(PDO::FETCH_ASSOC);
+
+					$cdate = new DateTime();
+					$curent_date = $cdate->format('Y-m-d H:i:s');
+
+					if($curent_date > $row['expires'])
+					{
+						return false;
+					}
+					else { return true; }
 				}
-				else { return true; }
+			}
+		}
+
+		// * This function returns how many days left till membership expires
+
+		public function membership_upto($username)
+		{
+			if($this->databaseConnection())
+			{
+				$valid_upto = "<b>Membership already expired!</b>";
+
+				$check_expiration = $this->db_connection->prepare("SELECT * FROM users WHERE username = :username");
+				$check_expiration->bindValue(':username', $username, PDO::PARAM_STR);
+				$check_expiration->execute();
+
+				if($check_expiration->rowCount() > 0)
+				{
+					$row = $check_expiration->fetch(PDO::FETCH_ASSOC);
+
+					$date_expire = $row['expires'];
+					$date1 = new DateTime('Now');
+					$date2 = new DateTime($date_expire);
+					$interval = $date1->diff($date2);
+
+					if($date1 < $date2)
+					{
+						$valid_upto = $interval->format('%a days');
+					}
+					echo $valid_upto;
+				}
+
+				else { echo $valid_upto; }
+			}
+		}
+
+		// * This will add a month worth of membership to users account
+
+		public function addMonthToAccount($username)
+		{
+			if(!empty($_GET['account']) && !empty($_GET['token']) && !empty($_GET['trial']))
+			{
+				if($this->databaseConnection())
+				{
+					$check_month = $this->db_connection->prepare("SELECT * FROM users WHERE username = :username");
+					$check_month->bindValue(':username', $username, PDO::PARAM_STR);
+					$check_month->execute();
+
+					if($check_month->rowCount() > 0)
+					{
+						$row = $check_month->fetch(PDO::FETCH_ASSOC);
+
+						$date_expire = $row['expires'];
+						$date = new DateTime($date_expire);
+						$date->modify('+1 month');
+						$expiry_date = $date->format('Y-m-d H:i:s');
+
+						$add_month = $this->db_connection->prepare("UPDATE users SET expires = :expires WHERE username = :username");
+						$add_month->bindValue(':expires', $expiry_date, PDO::PARAM_STR);
+						$add_month->bindValue(':username', $username, PDO::PARAM_STR);
+						$add_month->execute();
+
+						header("location: index.php");
+						exit();
+					}
+					else
+					{
+						header("location: index.php");
+						exit();
+					}
+				}
+			}
+			else
+			{
+				header("location: index.php");
+				exit();
 			}
 		}
 	}
